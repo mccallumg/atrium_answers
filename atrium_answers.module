@@ -1,0 +1,230 @@
+<?php
+
+include_once('atrium_answers.features.inc');
+
+function atrium_answers_init() {
+  drupal_add_css(drupal_get_path('module', 'atrium_answers') . '/atrium_answers.css');
+}
+
+/**
+ * Implementation of hook_strongarm().
+ */
+function atrium_answers_strongarm() {
+  $conf = array();
+
+  $conf['node_options_question'] = array('status', 'revision');
+
+  $conf['og_content_type_usage_question'] = "group_post_standard";
+
+  $conf['notifications_content_type_question'] = array('thread', 'grouptype', 'nodetype', 'author');
+
+  $conf['og_notifications_content_types']['question'] = 'question';
+
+  $conf['upload_question'] = true;
+
+  // Comments
+  $conf['comment_anonymous_question'] = false;
+  $conf['comment_controls_question'] = COMMENT_CONTROLS_HIDDEN;
+  $conf['comment_default_mode_question'] = COMMENT_MODE_FLAT_EXPANDED;
+  $conf['comment_default_order_question'] = COMMENT_ORDER_OLDEST_FIRST;
+  $conf['comment_default_per_page_question'] = 300;
+  $conf['comment_form_location_question'] = COMMENT_FORM_BELOW;
+  $conf['comment_preview_question'] = COMMENT_PREVIEW_OPTIONAL;
+  $conf['comment_question'] = COMMENT_NODE_READ_WRITE;
+  $conf['comment_subject_field_question'] = false;
+  $conf['comment_upload_question'] = true;
+
+  // FeedAPI
+  $conf['feedapi_settings_question'] = array('enabled' => FALSE);
+
+  // Disable Diff button
+  $conf["show_preview_changes_question"] = false;
+  $conf["show_diff_inline_question"] = false;
+
+  // Enable for recent activity views
+  $conf['atrium_update_type_question'] = true;
+
+  // Pathauto (optional) settings
+  $conf["pathauto_node_question_pattern"] = "[space-og-path]/question/[title-raw]";
+
+  // Userpoints settings
+  $conf['userpoints_category_default_tid'] = 0;
+	$conf['userpoints_category_profile_display_tid'] = "all";
+	$conf['userpoints_display_message'] = 1;
+	$conf['userpoints_expireafter_date'] = 0;
+	$conf['userpoints_expireon_date'] = array("month"=>"1","day"=>"1","year"=>"1980");
+	$conf['userpoints_expiry_description'] = "";
+	$conf['userpoints_points_moderation'] = 0;
+	$conf['userpoints_report_displayzero'] = 1;
+	$conf['userpoints_report_limit'] = 100;
+	$conf['userpoints_report_usercount'] = 100;
+	$conf['userpoints_transaction_timestamp'] = 1;
+	$conf['userpoints_trans_lcpoint'] = "point";
+	$conf['userpoints_trans_lcpoints'] = "points";
+	$conf['userpoints_trans_ucpoint'] = "Point";
+	$conf['userpoints_trans_ucpoints'] = "Points";
+	$conf['userpoints_trans_uncat'] = "Uncategorized";
+
+  // Voting API settings
+  $conf['votingapi_anonymous_window'] = 86400;
+	$conf['votingapi_calculation_schedule'] = "immediate";
+
+  // Vote Up/Down settings
+  $conf['vud_tag'] = "vote";
+  $conf['vud_comment_node_types'] = array("question"=>"question");
+	$conf['vud_comment_reset'] = 1;
+	$conf['vud_comment_votes'] = 0;
+	$conf['vud_comment_widget'] = "updown";
+	$conf['vud_node_reset'] = 1;
+	$conf['vud_node_types'] = array("question"=>"question");
+	$conf['vud_node_votes'] = 0;
+	$conf['vud_node_widget'] = "updown";
+	$conf['vud_node_widget_show'] = 2;
+
+  return $conf;
+}
+
+
+function _atrium_answers_vote_to_userpointsapi($vote)
+{
+  if ($vote['content_type'] === 'node') {
+    $node = node_load(array('nid'=>$vote['content_id']));
+    if ($node->type === 'question') {
+      $type = 'question';
+      $uid = $node->uid;
+    } else {
+      return;
+    }
+  } else if ($vote['content_type'] === 'comment') {
+    $comment = _comment_load($vote['content_id']);
+    $node = node_load(array('nid'=>$comment->nid));
+    if ($node->type === 'question') {
+      $type = 'answer';
+      $uid = $comment->uid;
+    } else {
+      return;
+    }
+  } else {
+    return;
+  }
+
+  if ($uid == $vote['uid']) {
+    // Votes on own content don't affect reputation.
+    return;
+  }
+
+  $user = user_load($uid);
+  $description = 'by ' . l($user->name, 'user/' . $uid);
+
+  return array(
+    'moderate' => false,
+    'uid' => $uid,
+    'operation' => $type,
+    'expirydate' => 0, // never
+    'description' => $description,
+    'entity_id' => $vote['content_id'],
+    'entity_type' => $vote['content_type'],
+    'display' => false,
+  );
+}
+
+
+function atrium_answers_votingapi_insert($votes)
+{
+  foreach ($votes as $vote) {
+    $up = _atrium_answers_vote_to_userpointsapi($vote);
+    if(!$up) {
+      continue;
+    }
+
+    if ($vote['value']==1) {
+      $up['points'] = 10;
+      $up['operation'] .= ' voted up';
+    } else if ($vote['value']==-1) {
+      $up['points'] = -2;
+      $up['operation'] .= ' voted down';
+    } else {
+      continue;
+    }
+
+    userpoints_userpointsapi($up);
+  }
+}
+
+function atrium_answers_votingapi_delete($votes)
+{
+  foreach ($votes as $vote) {
+    $up = _atrium_answers_vote_to_userpointsapi($vote);
+    if(!$up) {
+      continue;
+    }
+
+    if ($vote['value']==1) {
+      $up['points'] = -10;
+      $up['operation'] .= ' vote retracted';
+    } else if ($vote['value']==-1) {
+      $up['points'] = 2;
+      $up['operation'] .= ' vote retracted';
+    } else {
+      continue;
+    }
+
+    userpoints_userpointsapi($up);
+  }
+}
+
+
+
+function atrium_answers_theme_registry_alter(&$theme_registry) {
+  if (!empty($theme_registry['username'])) {
+    $theme_registry['username']['function'] = 'atrium_answers_theme_username';
+  }
+}
+
+function atrium_answers_theme_username($object) {
+  if ($object->uid && $object->name) {
+    // Shorten the name when it is too long or it will break many tables.
+    if (drupal_strlen($object->name) > 20) {
+      $name = drupal_substr($object->name, 0, 15) .'...';
+    }
+    else {
+      $name = $object->name;
+    }
+
+    if (user_access('access user profiles')) {
+      $output = l($name, 'user/'. $object->uid, array('title' => t('View user profile.')));
+    }
+    else {
+      $output = check_plain($name);
+    }
+
+    $user=user_load(array('uid'=>$object->uid));
+    if (in_array('admin',$user->roles)) {
+      $output .= ' <span title="Admin">❖</span>';
+    }
+    if (in_array('manager',$user->roles)) {
+      $output .= ' <span title="Manager">◆</span>';
+    }
+    $output .= ' <span class="userpoints">('.userpoints_get_current_points($object->uid).')</span>';
+    $output = '<span class="usernametag">'.$output.'</span>';
+  }
+  else if ($object->name) {
+    // Sometimes modules display content composed by people who are
+    // not registered members of the site (e.g. mailing list or news
+    // aggregator modules). This clause enables modules to display
+    // the true author of the content.
+    if ($object->homepage) {
+      $output = l($object->name, $object->homepage);
+    }
+    else {
+      $output = check_plain($object->name);
+    }
+
+    $output .= ' ('. t('not verified') .')';
+  }
+  else {
+    $output = variable_get('anonymous', t('Anonymous'));
+  }
+
+  return $output;
+}
