@@ -13,6 +13,9 @@ span.spaces-feature.feature-atrium_answers {
   border: 0.1em solid #eee;
   padding: 0.2em;
 }
+#header div.block-toggle div.block-content .usernametag a {
+  color: #000000;
+}
 .usernametag .userpoints {
   color: #aaa;
 }
