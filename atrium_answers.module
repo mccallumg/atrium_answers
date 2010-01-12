@@ -49,130 +49,51 @@ function atrium_answers_strongarm() {
 
   // Userpoints settings
   $conf['userpoints_category_default_tid'] = 0;
-	$conf['userpoints_category_profile_display_tid'] = "all";
-	$conf['userpoints_display_message'] = 1;
-	$conf['userpoints_expireafter_date'] = 0;
-	$conf['userpoints_expireon_date'] = array("month"=>"1","day"=>"1","year"=>"1980");
-	$conf['userpoints_expiry_description'] = "";
-	$conf['userpoints_points_moderation'] = 0;
-	$conf['userpoints_report_displayzero'] = 1;
-	$conf['userpoints_report_limit'] = 100;
-	$conf['userpoints_report_usercount'] = 100;
-	$conf['userpoints_transaction_timestamp'] = 1;
-	$conf['userpoints_trans_lcpoint'] = "point";
-	$conf['userpoints_trans_lcpoints'] = "points";
-	$conf['userpoints_trans_ucpoint'] = "Point";
-	$conf['userpoints_trans_ucpoints'] = "Points";
-	$conf['userpoints_trans_uncat'] = "Uncategorized";
+  $conf['userpoints_category_profile_display_tid'] = "all";
+  $conf['userpoints_display_message'] = 1;
+  $conf['userpoints_expireafter_date'] = 0;
+  $conf['userpoints_expireon_date'] = array("month"=>"1","day"=>"1","year"=>"1980");
+  $conf['userpoints_expiry_description'] = "";
+  $conf['userpoints_points_moderation'] = 0;
+  $conf['userpoints_report_displayzero'] = 1;
+  $conf['userpoints_report_limit'] = 100;
+  $conf['userpoints_report_usercount'] = 100;
+  $conf['userpoints_transaction_timestamp'] = 1;
+  $conf['userpoints_trans_lcpoint'] = "point";
+  $conf['userpoints_trans_lcpoints'] = "points";
+  $conf['userpoints_trans_ucpoint'] = "Point";
+  $conf['userpoints_trans_ucpoints'] = "Points";
+  $conf['userpoints_trans_uncat'] = "Uncategorized";
+
+  // Userpoints Karma settings
+  $conf['userpoints_karma_points_down'] = 2;
+  $conf['userpoints_karma_points_notify'] = 1;
+  $conf['userpoints_karma_points_up'] = 10;
+  $conf['userpoints_karma_points_voter'] = '0';
+  $conf['userpoints_karma_points_voter_change'] = 0;
+  $conf['userpoints_karma_points_voter_hide'] = 0;
+  $conf['userpoints_karma_points_voter_own'] = 0;
+  $conf['userpoints_karma_points_voter_tid'] = '0';
+  $conf['userpoints_karma_tag'] = 'userpoints_karma';
 
   // Voting API settings
   $conf['votingapi_anonymous_window'] = 86400;
-	$conf['votingapi_calculation_schedule'] = "immediate";
+  $conf['votingapi_calculation_schedule'] = "immediate";
 
   // Vote Up/Down settings
-  $conf['vud_tag'] = "vote";
+  $conf['vud_tag'] = "userpoints_karma";
   $conf['vud_comment_node_types'] = array("question"=>"question");
-	$conf['vud_comment_reset'] = 1;
-	$conf['vud_comment_votes'] = 0;
-	$conf['vud_comment_widget'] = "updown";
-	$conf['vud_node_reset'] = 1;
-	$conf['vud_node_types'] = array("question"=>"question");
-	$conf['vud_node_votes'] = 0;
-	$conf['vud_node_widget'] = "updown";
-	$conf['vud_node_widget_show'] = 2;
+  $conf['vud_comment_reset'] = 0;
+  $conf['vud_comment_votes'] = 0;
+  $conf['vud_comment_widget'] = "updown";
+  $conf['vud_node_reset'] = 0;
+  $conf['vud_node_types'] = array("question"=>"question");
+  $conf['vud_node_votes'] = 0;
+  $conf['vud_node_widget'] = "updown";
+  $conf['vud_node_widget_show'] = 2;
 
   return $conf;
 }
-
-
-function _atrium_answers_vote_to_userpointsapi($vote)
-{
-  if ($vote['content_type'] === 'node') {
-    $node = node_load(array('nid'=>$vote['content_id']));
-    if ($node->type === 'question') {
-      $type = 'question';
-      $uid = $node->uid;
-    } else {
-      return;
-    }
-  } else if ($vote['content_type'] === 'comment') {
-    $comment = _comment_load($vote['content_id']);
-    $node = node_load(array('nid'=>$comment->nid));
-    if ($node->type === 'question') {
-      $type = 'answer';
-      $uid = $comment->uid;
-    } else {
-      return;
-    }
-  } else {
-    return;
-  }
-
-  if ($uid == $vote['uid']) {
-    // Votes on own content don't affect reputation.
-    return;
-  }
-
-  $user = user_load($uid);
-  $description = 'by ' . l($user->name, 'user/' . $uid);
-
-  return array(
-    'moderate' => false,
-    'uid' => $uid,
-    'operation' => $type,
-    'expirydate' => 0, // never
-    'description' => $description,
-    'entity_id' => $vote['content_id'],
-    'entity_type' => $vote['content_type'],
-    'display' => false,
-  );
-}
-
-
-function atrium_answers_votingapi_insert($votes)
-{
-  foreach ($votes as $vote) {
-    $up = _atrium_answers_vote_to_userpointsapi($vote);
-    if(!$up) {
-      continue;
-    }
-
-    if ($vote['value']==1) {
-      $up['points'] = 10;
-      $up['operation'] .= ' voted up';
-    } else if ($vote['value']==-1) {
-      $up['points'] = -2;
-      $up['operation'] .= ' voted down';
-    } else {
-      continue;
-    }
-
-    userpoints_userpointsapi($up);
-  }
-}
-
-function atrium_answers_votingapi_delete($votes)
-{
-  foreach ($votes as $vote) {
-    $up = _atrium_answers_vote_to_userpointsapi($vote);
-    if(!$up) {
-      continue;
-    }
-
-    if ($vote['value']==1) {
-      $up['points'] = -10;
-      $up['operation'] .= ' vote retracted';
-    } else if ($vote['value']==-1) {
-      $up['points'] = 2;
-      $up['operation'] .= ' vote retracted';
-    } else {
-      continue;
-    }
-
-    userpoints_userpointsapi($up);
-  }
-}
-
 
 
 function atrium_answers_theme_registry_alter(&$theme_registry) {
