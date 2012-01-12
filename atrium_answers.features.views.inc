@@ -193,20 +193,6 @@ function _atrium_answers_views_default_views() {
   ));
   $handler->override_option('title', 'Answers');
   $handler->override_option('use_pager', '1');
-  $handler->override_option('style_plugin', 'litenode');
-  $handler->override_option('style_options', array(
-    'modules' => array(
-      'taxonomy' => 1,
-      'upload' => 1,
-      'atrium' => 1,
-      'node' => TRUE,
-      'user' => TRUE,
-      'comment' => TRUE,
-      'og' => TRUE,
-    ),
-    'teaser' => 1,
-    'cullen' => 0,
-  ));
   $handler->override_option('row_plugin', 'node');
   $handler = $view->new_display('page', 'Page', 'page_1');
   $handler->override_option('path', 'answers');
